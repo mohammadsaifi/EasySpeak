@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EasySpeak - Modern Web Teleprompter</title>
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Cairo', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        /* Custom scrollbar for text area */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Mirroring effects for Prompter mode */
+        .mirror-h {
+            transform: scaleX(-1);
+        }
+        .mirror-v {
+            transform: scaleY(-1);
+        }
+        .mirror-hv {
+            transform: scale(-1, -1);
+        }
+
+        /* Hide scrollbars during prompter mode for clean view */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Highlight overlay focus box */
+        .focus-line-overlay {
+            pointer-events: none;
+            border-top: 2px dashed rgba(239, 68, 68, 0.4);
+            border-bottom: 2px dashed rgba(239, 68, 68, 0.4);
+            background: linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.12) 50%, rgba(239, 68, 68, 0.05) 100%);
+        }
+
+        /* Voice Highlight Classes */
+        .word-token {
+            transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+            display: inline-block;
+            padding: 0 4px;
+            border-radius: 6px;
+        }
+
+        .word-spoken {
+            color: #10b981 !important; /* Tailwind emerald-500 */
+            opacity: 0.4;
+        }
+
+        .word-active {
+            background-color: rgba(99, 102, 241, 0.4); /* Indigo glow */
+            color: #ffffff !important;
+            font-weight: 700;
+            transform: scale(1.08);
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.6);
+        }
+
+        /* Flash / Memory Mode Hidden Class */
+        .word-hidden {
+            opacity: 0.25 !important;
+            filter: blur(2.5px);
+            user-select: none;
+            transition: all 0.3s ease;
+        }
+
+        .word-revealed {
+            opacity: 1 !important;
+            filter: blur(0px);
+            color: #10b981 !important;
+            animation: fadeInWord 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeInWord {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+
+    <!-- MAIN EDITOR SCREEN -->
+    <div id="editor-screen" class="flex flex-col h-full max-w-7xl w-full mx-auto p-4 md:p-6 gap-4">
+        
+        <!-- Header -->
+        <header class="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/30">
+                    <i data-lucide="video" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        EasySpeak
+                        <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shadow-sm flex items-center gap-1">
+                            <i data-lucide="code" class="w-3 h-3 text-indigo-400"></i>
+                            Developed by Mohammad Al-Saifi
+                        </span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Write, check grammar, voice-track, and scroll your script effortlessly</p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2">
+                <button id="grammar-check-btn" class="px-3.5 py-2 text-xs font-semibold text-emerald-300 hover:text-white bg-emerald-500/10 hover:bg-emerald-500/20 rounded-xl transition-all border border-emerald-500/30 flex items-center gap-1.5 hover:scale-[1.02] shadow-sm">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-emerald-400"></i>
+                    <span>AI Grammar Check</span>
+                </button>
+                <button id="load-sample-btn" class="px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-700/50">
+                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                    <span>Sample Text</span>
+                </button>
+                <button id="clear-btn" class="px-3 py-2 text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-1.5 border border-red-500/20">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    <span>Clear</span>
+                </button>
+                <button id="start-prompter-btn" class="px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 rounded-xl transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2 hover:scale-[1.02]">
+                    <i data-lucide="play" class="w-4 h-4 fill-white"></i>
+                    <span>Start Prompter</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-0">
+            
+            <!-- Editor Text Area (3 cols) -->
+            <div class="lg:col-span-3 flex flex-col h-full bg-slate-900/80 rounded-2xl border border-slate-800 shadow-xl overflow-hidden backdrop-blur-sm relative">
+                <div class="px-4 py-2.5 bg-slate-800/50 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <span class="font-medium flex items-center gap-1.5 text-slate-300">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Script Editor
+                    </span>
+                    <div class="flex items-center gap-4">
+                        <span id="stat-words">0 words</span>
+                        <span>•</span>
+                        <span id="stat-chars">0 characters</span>
+                        <span>•</span>
+                        <span id="stat-time">Est. 0:00 read</span>
+                    </div>
+                </div>
+                <textarea id="script-input" class="flex-1 p-5 bg-transparent text-slate-100 focus:outline-none resize-none text-lg leading-relaxed placeholder-slate-600 font-normal" placeholder="Paste or type your script here... Or click 'Sample Text' to test."></textarea>
+            </div>
+
+            <!-- Settings Sidebar (1 col) -->
+            <div class="flex flex-col gap-4 overflow-y-auto pr-1">
+                <div class="bg-slate-900/80 rounded-2xl p-4 border border-slate-800 shadow-xl space-y-5">
+                    
+                    <h3 class="text-sm font-semibold text-slate-200 border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-4 h-4 text-indigo-400"></i> Settings & Modes
+                    </h3>
+
+                    <!-- Scroll Mode Selector (Timer vs Voice Tracking vs Flash Reveal) -->
+                    <div class="space-y-2">
+                        <label class="text-xs text-slate-300 font-medium block">Scrolling Mode</label>
+                        <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-800/60 rounded-xl border border-slate-800">
+                            <button id="mode-auto-btn" class="mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 bg-indigo-600 text-white shadow-md">
+                                <i data-lucide="clock" class="w-3.5 h-3.5"></i> Manual Speed
+                            </button>
+                            <button id="mode-timer-btn" class="mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 text-slate-400 hover:text-white transition-colors">
+                                <i data-lucide="timer" class="w-3.5 h-3.5"></i> Duration
+                            </button>
+                            <button id="mode-voice-btn" class="mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 text-slate-400 hover:text-white transition-colors">
+                                <i data-lucide="mic" class="w-3.5 h-3.5"></i> Voice Track
+                            </button>
+                            <button id="mode-reveal-btn" class="mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 text-slate-400 hover:text-white transition-colors" title="إظهار النص عند النطق للتسميع">
+                                <i data-lucide="eye-off" class="w-3.5 h-3.5"></i> Blind Reveal
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Target Timer Inputs Container (Hidden by default) -->
+                    <div id="target-timer-container" class="space-y-2 hidden p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                        <label class="text-xs text-indigo-300 font-semibold block flex items-center gap-1.5">
+                            <i data-lucide="timer" class="w-4 h-4 text-indigo-400"></i> وقت إلقاء النص المطلوب
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1">
+                                <label class="text-[10px] text-slate-400 block mb-1">الدقائق</label>
+                                <input type="number" id="target-minutes" min="0" max="60" value="2" class="w-full bg-slate-800 border border-slate-700 text-white text-center text-sm font-bold rounded-lg p-2 focus:outline-none focus:border-indigo-500">
+                            </div>
+                            <span class="text-slate-500 font-bold text-lg mt-3">:</span>
+                            <div class="flex-1">
+                                <label class="text-[10px] text-slate-400 block mb-1">الثواني</label>
+                                <input type="number" id="target-seconds" min="0" max="59" value="0" step="5" class="w-full bg-slate-800 border border-slate-700 text-white text-center text-sm font-bold rounded-lg p-2 focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-indigo-300/80 mt-1">سيتم ضبط سرعة الشاشة تلقائياً لينهي النص في هذا الوقت.</p>
+                    </div>
+
+                    <!-- Voice Recognition Language Selection -->
+                    <div id="voice-lang-container" class="space-y-2 hidden">
+                        <label class="text-xs text-slate-300 font-medium block">Voice Language</label>
+                        <select id="voice-language" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-indigo-500">
+                            <option value="ar-SA" selected>العربية (Arabic)</option>
+                            <option value="en-US">English (US)</option>
+                            <option value="de-DE">Deutsch (German)</option>
+                            <option value="fr-FR">Français (French)</option>
+                            <option value="es-ES">Español (Spanish)</option>
+                        </select>
+                    </div>
+
+                    <!-- Speed Slider -->
+                    <div id="speed-setting-container" class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <label class="text-slate-300 font-medium">Scroll Speed</label>
+                            <span id="speed-val" class="text-indigo-400 font-bold">3</span>
+                        </div>
+                        <input type="range" id="setting-speed" min="1" max="10" value="3" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    </div>
+
+                    <!-- Font Size Slider -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <label class="text-slate-300 font-medium">Font Size</label>
+                            <span id="fontsize-val" class="text-indigo-400 font-bold">56px</span>
+                        </div>
+                        <input type="range" id="setting-fontsize" min="24" max="120" value="56" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    </div>
+
+                    <!-- Line Spacing Slider -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <label class="text-slate-300 font-medium">Line Spacing (تباعد الأسطر)</label>
+                            <span id="lineheight-val" class="text-indigo-400 font-bold">1.8</span>
+                        </div>
+                        <input type="range" id="setting-lineheight" min="1.0" max="3.0" step="0.1" value="1.8" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                    </div>
+
+                    <!-- Alignment -->
+                    <div class="space-y-2">
+                        <label class="text-xs text-slate-300 font-medium block">Text Alignment</label>
+                        <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-800/60 rounded-xl border border-slate-800">
+                            <button data-align="left" class="align-btn p-2 text-slate-400 hover:text-white rounded-lg flex justify-center transition-colors">
+                                <i data-lucide="align-left" class="w-4 h-4"></i>
+                            </button>
+                            <button data-align="center" class="align-btn p-2 text-white bg-indigo-600 rounded-lg flex justify-center shadow-md">
+                                <i data-lucide="align-center" class="w-4 h-4"></i>
+                            </button>
+                            <button data-align="right" class="align-btn p-2 text-slate-400 hover:text-white rounded-lg flex justify-center transition-colors">
+                                <i data-lucide="align-right" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mirror / Flip Options -->
+                    <div class="space-y-2">
+                        <label class="text-xs text-slate-300 font-medium block">Mirror Options (Hardware Glass)</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="toggle-mirror-h" class="p-2.5 text-xs font-medium rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all">
+                                <i data-lucide="flip-horizontal" class="w-4 h-4"></i>
+                                <span>Flip Horizontal</span>
+                            </button>
+                            <button id="toggle-mirror-v" class="p-2.5 text-xs font-medium rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 hover:text-white flex items-center justify-center gap-1.5 transition-all">
+                                <i data-lucide="flip-vertical" class="w-4 h-4"></i>
+                                <span>Flip Vertical</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Color Scheme Selector -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs text-slate-300 font-medium block">Color Contrast Presets</label>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button data-theme="dark" class="theme-btn p-2 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all">
+                                <span class="w-3 h-3 rounded-full bg-slate-950 border border-slate-600"></span> Dark
+                            </button>
+                            <button data-theme="light" class="theme-btn p-2 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all">
+                                <span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span> Light
+                            </button>
+                            <button data-theme="yellow" class="theme-btn p-2 rounded-xl border border-indigo-500 bg-indigo-600/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/50">
+                                <span class="w-3 h-3 rounded-full bg-yellow-400"></span> High Vis
+                            </button>
+                        </div>
+
+                        <!-- Custom Font Color Picker (Only Active in High Vis mode) -->
+                        <div id="custom-color-container" class="pt-2 flex items-center justify-between bg-slate-800/40 p-2.5 rounded-xl border border-slate-800 mt-2 transition-opacity">
+                            <span class="text-xs text-slate-300 font-medium flex items-center gap-1.5" id="custom-color-label">
+                                <i data-lucide="palette" class="w-3.5 h-3.5 text-indigo-400"></i> Custom Text Color
+                            </span>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="custom-text-color" value="#facc15" class="w-7 h-7 bg-transparent cursor-pointer rounded-lg border-0">
+                                <span id="custom-color-hex" class="text-[10px] font-mono text-slate-400">#FACC15</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Line Overlay Indicator Toggle -->
+                    <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-300 font-medium">Focus Line Indicator</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggle-focus-line" class="sr-only peer" checked>
+                            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+
+                </div>
+
+                <!-- Keyboard Shortcuts Box -->
+                <div class="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/80 text-xs text-slate-400 space-y-2">
+                    <span class="font-semibold text-slate-300 block mb-1 flex items-center gap-1.5">
+                        <i data-lucide="keyboard" class="w-3.5 h-3.5 text-indigo-400"></i> Hotkeys in Prompter
+                    </span>
+                    <div class="flex justify-between items-center"><span class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">Space</span> Play / Pause / Mic</div>
+                    <div class="flex justify-between items-center"><span class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">↑ / ↓</span> Speed Up / Down</div>
+                    <div class="flex justify-between items-center"><span class="px-1.5 py-0.5 bg-slate-800 rounded text-slate-300 font-mono">Esc</span> Exit Prompter</div>
+                </div>
+
+                <!-- Developer Footer Credit -->
+                <div class="text-center py-2 text-xs text-slate-500 font-medium border-t border-slate-800/50 flex items-center justify-center gap-1.5">
+                    <span>Designed & Developed by</span>
+                    <span class="text-indigo-400 font-semibold">Mohammad Al-Saifi</span>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- PROMPTER SCREEN (FULLSCREEN VIEW) -->
+    <div id="prompter-screen" class="fixed inset-0 z-50 bg-black hidden flex-col justify-between select-none">
+        
+        <!-- Focus Line Indicator Box Overlay -->
+        <div id="focus-line" class="focus-line-overlay absolute left-0 right-0 top-1/2 -translate-y-1/2 h-28 z-10"></div>
+
+        <!-- Floating Quick Control Overlay Bar -->
+        <div id="prompter-controls" class="absolute top-6 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 border border-slate-700/80 backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 transition-opacity duration-300 opacity-90 hover:opacity-100">
+            <!-- Play/Pause Button / Mic Toggle -->
+            <button id="play-pause-btn" class="p-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white transition-all transform active:scale-95 shadow-md flex items-center gap-2">
+                <i data-lucide="play" id="play-icon" class="w-5 h-5 fill-white"></i>
+                <i data-lucide="pause" id="pause-icon" class="w-5 h-5 fill-white hidden"></i>
+                <i data-lucide="mic" id="mic-icon" class="w-5 h-5 hidden animate-pulse text-emerald-400"></i>
+                <span id="mode-status-label" class="text-xs font-bold tracking-wide uppercase px-1">Play</span>
+            </button>
+
+            <!-- Voice Listening Status Badge -->
+            <div id="voice-indicator" class="hidden items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                <span>Listening...</span>
+            </div>
+
+            <!-- Countdown Timer Badge (For Timer Mode) -->
+            <div id="timer-countdown-badge" class="hidden items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-300 text-xs font-mono font-bold">
+                <i data-lucide="timer" class="w-3.5 h-3.5 text-indigo-400"></i>
+                <span id="timer-countdown-display">00:00</span>
+            </div>
+
+            <!-- Speed Controls (Hidden in Voice Mode) -->
+            <div id="prompter-speed-controls" class="flex items-center gap-2 border-r border-slate-700/80 pr-4">
+                <button id="speed-down-btn" class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="minus" class="w-4 h-4"></i>
+                </button>
+                <div class="text-xs font-semibold text-slate-200 min-w-[50px] text-center">
+                    <span id="prompter-speed-display">3</span>x speed
+                </div>
+                <button id="speed-up-btn" class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Font Size Quick Adjust -->
+            <div class="flex items-center gap-2 border-r border-slate-700/80 pr-4">
+                <button id="font-down-btn" class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="type" class="w-3.5 h-3.5"></i>
+                </button>
+                <span id="prompter-font-display" class="text-xs font-semibold text-slate-200">56px</span>
+                <button id="font-up-btn" class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="type" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Line Height Quick Adjust -->
+            <div class="flex items-center gap-2 border-r border-slate-700/80 pr-4" title="Line Spacing (تباعد الأسطر)">
+                <button id="line-down-btn" class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="shrink" class="w-4 h-4"></i>
+                </button>
+                <span id="prompter-lineheight-display" class="text-xs font-semibold text-slate-200">1.8x</span>
+                <button id="line-up-btn" class="p-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg">
+                    <i data-lucide="expand" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Mirror Toggle Quick -->
+            <button id="prompter-mirror-btn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Toggle Mirror Horizontal">
+                <i data-lucide="flip-horizontal" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Fullscreen Button -->
+            <button id="fullscreen-btn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors" title="Toggle Fullscreen">
+                <i data-lucide="maximize" class="w-4 h-4"></i>
+            </button>
+
+            <!-- Exit Button -->
+            <button id="exit-prompter-btn" class="px-3.5 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5">
+                <i data-lucide="x" class="w-4 h-4"></i> Exit
+            </button>
+        </div>
+
+        <!-- Prompter Display Text Box Container -->
+        <div id="scroll-container" class="w-full h-full overflow-y-auto no-scrollbar scroll-smooth px-8 md:px-24">
+            <!-- Padding spacer top so text starts in middle -->
+            <div id="spacer-top" class="w-full"></div>
+
+            <div id="prompter-text" class="w-full transition-transform duration-75 leading-relaxed max-w-4xl mx-auto font-semibold text-center">
+                <!-- Text injected dynamically with tokenized spans -->
+            </div>
+
+            <!-- Padding spacer bottom so text can scroll all the way through -->
+            <div id="spacer-bottom" class="w-full"></div>
+        </div>
+
+    </div>
+
+    <!-- AI GRAMMAR CHECK MODAL -->
+    <div id="grammar-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-800/40">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">المدقق اللغوي والإملائي (AI Grammar Check)</h3>
+                        <p class="text-xs text-slate-400">فحص وتصحيح الأخطاء اللغوية باستخدام الذكاء الاصطناعي</p>
+                    </div>
+                </div>
+                <button id="close-grammar-modal" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content Body -->
+            <div class="p-5 overflow-y-auto space-y-5 flex-1 text-sm text-slate-200" id="grammar-modal-body">
+                <!-- Loading State -->
+                <div id="grammar-loading" class="py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+                    <div class="w-8 h-8 border-3 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+                    <p class="text-xs font-medium">جاري فحص النص وتحليله لغوياً...</p>
+                </div>
+
+                <!-- Results View (Hidden by default) -->
+                <div id="grammar-results" class="hidden space-y-4">
+                    <!-- Status Header -->
+                    <div id="grammar-summary" class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-medium">
+                        تم فحص النص بنجاح!
+                    </div>
+
+                    <!-- Corrected Text Preview -->
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400 block">النص المُصحَّح المقترح:</label>
+                        <div id="corrected-text-box" class="p-4 bg-slate-950/70 border border-slate-800 rounded-xl font-normal leading-relaxed text-slate-100 whitespace-pre-wrap max-h-48 overflow-y-auto font-sans">
+                        </div>
+                    </div>
+
+                    <!-- Issues / Changes List -->
+                    <div class="space-y-2">
+                        <label class="text-xs font-semibold text-slate-400 block">قائمة التعديلات والأخطاء المكتشفة:</label>
+                        <div id="grammar-issues-list" class="space-y-2 max-h-44 overflow-y-auto pr-1">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-slate-800 bg-slate-800/30 flex justify-end gap-3">
+                <button id="cancel-grammar-btn" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors">
+                    إلغاء
+                </button>
+                <button id="apply-corrected-btn" class="hidden px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-1.5">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>اعتماد النص المُصحَّح</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        // Sample Speech Text Constant
+        const sampleText = `Willkommen auf unserer Website zum Erlernen der Gesprächsführung und zum Trainieren der Geschwindigkeit beim GJUDaf!
+
+In diesem Tool können Sie Ihre Sprachgeschwindigkeit, Textgröße und Zeilenabstände einfach anpassen.
+Probieren Sie auch die intelligente Sprachverfolgung (Voice Track) oder den Blinden Enthüllungsmodus (Blind Reveal) aus.
+
+Wir wünschen Ihnen ein erfolgreiches und reibungsloses Training vor der Kamera!`;
+
+        // State variables
+        let isPlaying = false;
+        let scrollSpeed = 3;
+        let fontSize = 56;
+        let lineHeight = 1.8;
+        let textAlign = 'center';
+        let mirrorH = false;
+        let mirrorV = false;
+        let theme = 'yellow'; // High Vis Default
+        let customTextColor = '#facc15'; // Default High-Vis Yellow
+        let scrollInterval = null;
+        let mode = 'auto'; // 'auto', 'timer', 'voice', or 'reveal'
+
+        // Target Duration Timer Variables
+        let targetDurationSeconds = 120; // Default 2 minutes
+        let calculatedPxPerFrame = 1;
+        let remainingSeconds = 120;
+        let timerCountdownInterval = null;
+
+        // Speech Recognition Variables
+        let recognition = null;
+        let wordElements = [];
+        let wordList = [];
+        let currentWordIndex = 0;
+        let isListening = false;
+
+        // Grammar AI State
+        let currentCorrectedScript = '';
+
+        // DOM Elements
+        const editorScreen = document.getElementById('editor-screen');
+        const prompterScreen = document.getElementById('prompter-screen');
+        const scriptInput = document.getElementById('script-input');
+        
+        const startPrompterBtn = document.getElementById('start-prompter-btn');
+        const exitPrompterBtn = document.getElementById('exit-prompter-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const micIcon = document.getElementById('mic-icon');
+        const modeStatusLabel = document.getElementById('mode-status-label');
+        const voiceIndicator = document.getElementById('voice-indicator');
+
+        const scrollContainer = document.getElementById('scroll-container');
+        const prompterText = document.getElementById('prompter-text');
+        const focusLine = document.getElementById('focus-line');
+        const spacerTop = document.getElementById('spacer-top');
+        const spacerBottom = document.getElementById('spacer-bottom');
+
+        // Mode elements
+        const modeAutoBtn = document.getElementById('mode-auto-btn');
+        const modeTimerBtn = document.getElementById('mode-timer-btn');
+        const modeVoiceBtn = document.getElementById('mode-voice-btn');
+        const modeRevealBtn = document.getElementById('mode-reveal-btn');
+        const targetTimerContainer = document.getElementById('target-timer-container');
+        const targetMinutesInput = document.getElementById('target-minutes');
+        const targetSecondsInput = document.getElementById('target-seconds');
+        const timerCountdownBadge = document.getElementById('timer-countdown-badge');
+        const timerCountdownDisplay = document.getElementById('timer-countdown-display');
+        const voiceLangContainer = document.getElementById('voice-lang-container');
+        const voiceLanguage = document.getElementById('voice-language');
+        const speedSettingContainer = document.getElementById('speed-setting-container');
+        const prompterSpeedControls = document.getElementById('prompter-speed-controls');
+
+        // Settings Inputs
+        const settingSpeed = document.getElementById('setting-speed');
+        const speedVal = document.getElementById('speed-val');
+        const settingFontsize = document.getElementById('setting-fontsize');
+        const fontsizeVal = document.getElementById('fontsize-val');
+        const settingLineheight = document.getElementById('setting-lineheight');
+        const lineheightVal = document.getElementById('lineheight-val');
+        const prompterSpeedDisplay = document.getElementById('prompter-speed-display');
+        const prompterFontDisplay = document.getElementById('prompter-font-display');
+        const prompterLineheightDisplay = document.getElementById('prompter-lineheight-display');
+        
+        const speedUpBtn = document.getElementById('speed-up-btn');
+        const speedDownBtn = document.getElementById('speed-down-btn');
+        const fontUpBtn = document.getElementById('font-up-btn');
+        const fontDownBtn = document.getElementById('font-down-btn');
+        const lineUpBtn = document.getElementById('line-up-btn');
+        const lineDownBtn = document.getElementById('line-down-btn');
+
+        const toggleMirrorH = document.getElementById('toggle-mirror-h');
+        const toggleMirrorV = document.getElementById('toggle-mirror-v');
+        const prompterMirrorBtn = document.getElementById('prompter-mirror-btn');
+        const toggleFocusLine = document.getElementById('toggle-focus-line');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const loadSampleBtn = document.getElementById('load-sample-btn');
+        const clearBtn = document.getElementById('clear-btn');
+
+        // Stats elements
+        const statWords = document.getElementById('stat-words');
+        const statChars = document.getElementById('stat-chars');
+        const statTime = document.getElementById('stat-time');
+
+        // Custom Color Picker DOM Elements
+        const customTextColorInput = document.getElementById('custom-text-color');
+        const customColorHexDisplay = document.getElementById('custom-color-hex');
+        const customColorContainer = document.getElementById('custom-color-container');
+
+        // AI Grammar Modal Elements
+        const grammarCheckBtn = document.getElementById('grammar-check-btn');
+        const grammarModal = document.getElementById('grammar-modal');
+        const grammarLoading = document.getElementById('grammar-loading');
+        const grammarResults = document.getElementById('grammar-results');
+        const correctedTextBox = document.getElementById('corrected-text-box');
+        const grammarIssuesList = document.getElementById('grammar-issues-list');
+        const applyCorrectedBtn = document.getElementById('apply-corrected-btn');
+        const closeGrammarModal = document.getElementById('close-grammar-modal');
+        const cancelGrammarBtn = document.getElementById('cancel-grammar-btn');
+        const grammarSummary = document.getElementById('grammar-summary');
+
+        // Initialize icons
+        lucide.createIcons();
+
+        // Sample Speech Text
+        // Apply line height to prompter text wrapper and all inner line elements
+        function applyLineHeight() {
+            prompterText.style.lineHeight = `${lineHeight}`;
+            const lineNodes = prompterText.querySelectorAll('div');
+            lineNodes.forEach(div => {
+                if (div.id !== 'spacer-top' && div.id !== 'spacer-bottom') {
+                    div.style.lineHeight = `${lineHeight}`;
+                    div.style.marginBottom = `${(lineHeight - 1) * 0.4}em`;
+                }
+            });
+        }
+
+        // Apply Theme Styles
+        function applyTheme() {
+            if (theme === 'dark') {
+                prompterScreen.style.backgroundColor = '#020617';
+                prompterText.style.color = '#f8fafc';
+            } else if (theme === 'light') {
+                prompterScreen.style.backgroundColor = '#ffffff';
+                prompterText.style.color = '#0f172a';
+            } else if (theme === 'yellow') {
+                prompterScreen.style.backgroundColor = '#000000';
+                prompterText.style.color = customTextColor;
+            }
+        }
+
+        // Apply Mirror Controls
+        function applyMirroring() {
+            prompterText.classList.remove('mirror-h', 'mirror-v', 'mirror-hv');
+            if (mirrorH && mirrorV) {
+                prompterText.classList.add('mirror-hv');
+            } else if (mirrorH) {
+                prompterText.classList.add('mirror-h');
+            } else if (mirrorV) {
+                prompterText.classList.add('mirror-v');
+            }
+        }
+
+        // Helper to balance long paragraphs into short natural reading chunks (6-8 words per line)
+        function splitParagraphIntoBalancedLines(text, wordsPerLine = 7) {
+            const words = text.split(/\s+/).filter(w => w.trim().length > 0);
+            if (words.length <= wordsPerLine) return [text];
+
+            const lines = [];
+            for (let i = 0; i < words.length; i += wordsPerLine) {
+                lines.push(words.slice(i, i + wordsPerLine).join(' '));
+            }
+            return lines;
+        }
+
+        // Helper: Calculate text stats (word count, char count, estimated read time)
+        function updateStats() {
+            const text = scriptInput.value || '';
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            const chars = text.length;
+
+            // Average reading speed: ~150 words per minute
+            const totalSeconds = Math.ceil((words / 150) * 60);
+            const mins = Math.floor(totalSeconds / 60);
+            const secs = totalSeconds % 60;
+            const formattedTime = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+            statWords.textContent = `${words} words`;
+            statChars.textContent = `${chars} characters`;
+            statTime.textContent = `Est. ${formattedTime} read`;
+        }
+
+        // Prepare Text Spans for Voice Tracking & Blind Reveal Mode
+        function prepareTokenizedText(rawText) {
+            prompterText.innerHTML = '';
+            wordElements = [];
+            wordList = [];
+
+            const paragraphs = rawText.split('\n');
+            
+            paragraphs.forEach((paragraph) => {
+                if (paragraph.trim() === '') {
+                    const br = document.createElement('div');
+                    br.style.height = `${lineHeight * 0.8}em`;
+                    prompterText.appendChild(br);
+                    return;
+                }
+
+                // Balance long paragraph into optimal reading lines
+                const subLines = splitParagraphIntoBalancedLines(paragraph.trim(), 7);
+
+                subLines.forEach((lineText) => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.style.lineHeight = `${lineHeight}`;
+                    lineDiv.style.marginBottom = `${(lineHeight - 1) * 0.4}em`;
+                    lineDiv.className = "w-full max-w-4xl mx-auto block";
+
+                    const words = lineText.split(/\s+/);
+                    words.forEach((word) => {
+                        if (!word) return;
+                        const cleanWord = stripDiacritics(word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()؟،]/g, "").toLowerCase());
+                        
+                        const span = document.createElement('span');
+                        span.className = mode === 'reveal' ? 'word-token word-hidden' : 'word-token';
+                        span.textContent = word + ' ';
+                        
+                        lineDiv.appendChild(span);
+                        wordElements.push(span);
+                        wordList.push(cleanWord);
+                    });
+
+                    prompterText.appendChild(lineDiv);
+                });
+            });
+        }
+
+        // Strip Arabic/German diacritics & accents
+        function stripDiacritics(str) {
+            return str
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/[\u064B-\u0652]/g, "") // Arabic Harakat
+                .replace(/[أإآ]/g, "ا")
+                .replace(/ة/g, "ه")
+                .replace(/ى/g, "ي");
+        }
+
+        // Levenshtein Distance for Speech Matching
+        function levenshteinDistance(a, b) {
+            if (a.length === 0) return b.length;
+            if (b.length === 0) return a.length;
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+            for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1,
+                            Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        // Setup Speech Recognition
+        function setupSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert('عذراً، متصفحك لا يدعم خاصية التتبع الصوتي المباشر. يرجى استخدام متصفح Google Chrome.');
+                return false;
+            }
+
+            if (recognition) {
+                try { recognition.stop(); } catch(e) {}
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = voiceLanguage.value;
+
+            recognition.onstart = () => {
+                isListening = true;
+                voiceIndicator.classList.remove('hidden');
+                voiceIndicator.classList.add('flex');
+            };
+
+            recognition.onerror = (event) => {
+                console.warn('Speech recognition error:', event.error);
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                if (isPlaying && (mode === 'voice' || mode === 'reveal')) {
+                    try { recognition.start(); } catch(e) {}
+                } else {
+                    voiceIndicator.classList.add('hidden');
+                    voiceIndicator.classList.remove('flex');
+                }
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+
+                const spokenWords = interimTranscript.trim().split(/\s+/);
+
+                spokenWords.forEach((spoken) => {
+                    const cleanSpoken = stripDiacritics(spoken.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()؟،]/g, "").toLowerCase());
+                    if (!cleanSpoken || cleanSpoken.length < 2) return;
+
+                    // Balanced look-ahead (up to 2 words) for precise & natural paced tracking
+                    for (let lookAhead = 0; lookAhead <= 2; lookAhead++) {
+                        const targetIdx = currentWordIndex + lookAhead;
+                        if (targetIdx >= wordList.length) break;
+
+                        const targetWord = wordList[targetIdx];
+                        
+                        // Fine-tuned precision check: exact match or high similarity only
+                        const dist = levenshteinDistance(cleanSpoken, targetWord);
+                        const isMatch = (cleanSpoken === targetWord) || 
+                                        (dist <= 1 && cleanSpoken.length >= 4) ||
+                                        (targetWord.startsWith(cleanSpoken) && cleanSpoken.length >= 3 && Math.abs(cleanSpoken.length - targetWord.length) <= 1);
+
+                        if (isMatch) {
+                            // Mark matched words up to this index
+                            for (let k = currentWordIndex; k <= targetIdx; k++) {
+                                if (wordElements[k]) {
+                                    if (mode === 'reveal') {
+                                        wordElements[k].classList.remove('word-hidden');
+                                        wordElements[k].classList.add('word-revealed');
+                                    } else {
+                                        wordElements[k].classList.add('word-spoken');
+                                        wordElements[k].classList.remove('word-active');
+                                    }
+                                }
+                            }
+
+                            currentWordIndex = targetIdx + 1;
+
+                            if (mode !== 'reveal' && wordElements[currentWordIndex]) {
+                                wordElements[currentWordIndex].classList.add('word-active');
+                            }
+
+                            // Auto scroll smoothly to current target line
+                            if (wordElements[currentWordIndex]) {
+                                const elementTop = wordElements[currentWordIndex].offsetTop;
+                                const containerHeight = scrollContainer.clientHeight;
+                                scrollContainer.scrollTop = elementTop - (containerHeight * 0.45);
+                            }
+                            break;
+                        }
+                    }
+                });
+            };
+
+            return true;
+        }
+
+        // Calculate Target Duration Timer Speed
+        function calculateTimerSpeed() {
+            const mins = parseInt(targetMinutesInput.value) || 0;
+            const secs = parseInt(targetSecondsInput.value) || 0;
+            targetDurationSeconds = (mins * 60) + secs;
+            if (targetDurationSeconds <= 0) targetDurationSeconds = 60;
+            remainingSeconds = targetDurationSeconds;
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(remainingSeconds / 60);
+            const s = remainingSeconds % 60;
+            timerCountdownDisplay.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        // Reset Target Duration Timer to default (2 min 0 sec)
+        function resetTimerToDefault() {
+            targetMinutesInput.value = 2;
+            targetSecondsInput.value = 0;
+            calculateTimerSpeed();
+        }
+
+        // Start Prompter Action
+        startPrompterBtn.addEventListener('click', startPrompter);
+
+        function startPrompter() {
+            const script = scriptInput.value.trim();
+            if (!script) {
+                alert('يرجى كتابة أو إدخال نص أولاً للبدء بقراءته!');
+                return;
+            }
+
+            // Hide Editor, Show Prompter
+            editorScreen.classList.add('hidden');
+            prompterScreen.classList.remove('hidden');
+            prompterScreen.classList.add('flex');
+
+            // Apply style configurations
+            applyTheme();
+            applyMirroring();
+            prompterText.style.fontSize = `${fontSize}px`;
+            prompterText.style.textAlign = textAlign;
+
+            // Padding spacers for full centered vertical view
+            const padHeight = Math.floor(window.innerHeight * 0.45);
+            spacerTop.style.height = `${padHeight}px`;
+            spacerBottom.style.height = `${padHeight}px`;
+
+            // Setup Text Content with line balancing
+            if (mode === 'voice' || mode === 'reveal') {
+                prepareTokenizedText(script);
+            } else {
+                const paragraphs = script.split('\n');
+                let formattedHtml = '';
+
+                paragraphs.forEach(p => {
+                    if (p.trim() === '') {
+                        formattedHtml += `<div style="height: ${lineHeight * 0.8}em;"></div>`;
+                    } else {
+                        const subLines = splitParagraphIntoBalancedLines(p.trim(), 7);
+                        subLines.forEach(sub => {
+                            formattedHtml += `<div style="line-height: ${lineHeight}; margin-bottom: ${(lineHeight - 1) * 0.4}em;" class="w-full max-w-4xl mx-auto block">${sub}</div>`;
+                        });
+                    }
+                });
+
+                prompterText.innerHTML = formattedHtml;
+            }
+
+            // Apply line height dynamic rules to current elements
+            applyLineHeight();
+
+            // Reset Scroll
+            scrollContainer.scrollTop = 0;
+            currentWordIndex = 0;
+
+            // Pause Prompter on start so it waits for user input
+            pausePrompter();
+        }
+
+        // Exit Prompter Action
+        exitPrompterBtn.addEventListener('click', stopPrompter);
+
+        function stopPrompter() {
+            pausePrompter();
+            prompterScreen.classList.add('hidden');
+            prompterScreen.classList.remove('flex');
+            editorScreen.classList.remove('hidden');
+        }
+
+        // Play / Pause Prompter Controls
+        playPauseBtn.addEventListener('click', togglePlay);
+
+        function togglePlay() {
+            if (isPlaying) {
+                pausePrompter();
+            } else {
+                playPrompter();
+            }
+        }
+
+        function playPrompter() {
+            isPlaying = true;
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+
+            if (mode === 'auto') {
+                micIcon.classList.add('hidden');
+                timerCountdownBadge.classList.add('hidden');
+                modeStatusLabel.textContent = 'Pause';
+                
+                if (scrollInterval) clearInterval(scrollInterval);
+                scrollInterval = setInterval(() => {
+                    scrollContainer.scrollTop += (scrollSpeed * 0.75);
+                }, 20);
+
+            } else if (mode === 'timer') {
+                micIcon.classList.add('hidden');
+                timerCountdownBadge.classList.remove('hidden');
+                timerCountdownBadge.classList.add('flex');
+                modeStatusLabel.textContent = 'Pause';
+
+                calculateTimerSpeed();
+                
+                const totalScrollablePx = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+                const totalFrames = targetDurationSeconds * 50;
+                calculatedPxPerFrame = totalScrollablePx / (totalFrames || 1);
+
+                if (scrollInterval) clearInterval(scrollInterval);
+                scrollInterval = setInterval(() => {
+                    scrollContainer.scrollTop += calculatedPxPerFrame;
+                    if (scrollContainer.scrollTop + scrollContainer.clientHeight >= scrollContainer.scrollHeight - 5) {
+                        pausePrompter();
+                    }
+                }, 20);
+
+                if (timerCountdownInterval) clearInterval(timerCountdownInterval);
+                updateTimerDisplay();
+                timerCountdownInterval = setInterval(() => {
+                    remainingSeconds--;
+                    updateTimerDisplay();
+                    if (remainingSeconds <= 0) {
+                        clearInterval(timerCountdownInterval);
+                    }
+                }, 1000);
+
+            } else if (mode === 'voice' || mode === 'reveal') {
+                pauseIcon.classList.add('hidden');
+                micIcon.classList.remove('hidden');
+                timerCountdownBadge.classList.add('hidden');
+                modeStatusLabel.textContent = 'Stop Mic';
+
+                if (setupSpeechRecognition()) {
+                    try {
+                        if (!isListening) recognition.start();
+                    } catch (e) {}
+                }
+            }
+        }
+
+        function pausePrompter() {
+            isPlaying = false;
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            micIcon.classList.add('hidden');
+            
+            if (mode === 'voice' || mode === 'reveal') {
+                modeStatusLabel.textContent = 'Start Mic';
+                if (recognition) {
+                    try { recognition.stop(); } catch(e) {}
+                }
+                voiceIndicator.classList.add('hidden');
+                voiceIndicator.classList.remove('flex');
+            } else {
+                modeStatusLabel.textContent = 'Play';
+            }
+
+            if (scrollInterval) {
+                clearInterval(scrollInterval);
+                scrollInterval = null;
+            }
+
+            if (timerCountdownInterval) {
+                clearInterval(timerCountdownInterval);
+                timerCountdownInterval = null;
+            }
+        }
+
+        // Mode Switching Listeners
+        function setMode(newMode) {
+            mode = newMode;
+            resetTimerToDefault();
+
+            // Reset buttons styling
+            [modeAutoBtn, modeTimerBtn, modeVoiceBtn, modeRevealBtn].forEach(btn => {
+                btn.className = "mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 text-slate-400 hover:text-white transition-colors";
+            });
+
+            if (mode === 'auto') {
+                modeAutoBtn.className = "mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 bg-indigo-600 text-white shadow-md";
+                targetTimerContainer.classList.add('hidden');
+                voiceLangContainer.classList.add('hidden');
+                speedSettingContainer.classList.remove('hidden');
+                prompterSpeedControls.classList.remove('hidden');
+            } else if (mode === 'timer') {
+                modeTimerBtn.className = "mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 bg-indigo-600 text-white shadow-md";
+                targetTimerContainer.classList.remove('hidden');
+                voiceLangContainer.classList.add('hidden');
+                speedSettingContainer.classList.add('hidden');
+                prompterSpeedControls.classList.add('hidden');
+            } else if (mode === 'voice') {
+                modeVoiceBtn.className = "mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 bg-indigo-600 text-white shadow-md";
+                targetTimerContainer.classList.add('hidden');
+                voiceLangContainer.classList.remove('hidden');
+                speedSettingContainer.classList.add('hidden');
+                prompterSpeedControls.classList.add('hidden');
+            } else if (mode === 'reveal') {
+                modeRevealBtn.className = "mode-btn p-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 bg-indigo-600 text-white shadow-md";
+                targetTimerContainer.classList.add('hidden');
+                voiceLangContainer.classList.remove('hidden');
+                speedSettingContainer.classList.add('hidden');
+                prompterSpeedControls.classList.add('hidden');
+            }
+        }
+
+        modeAutoBtn.addEventListener('click', () => setMode('auto'));
+        modeTimerBtn.addEventListener('click', () => setMode('timer'));
+        modeVoiceBtn.addEventListener('click', () => setMode('voice'));
+        modeRevealBtn.addEventListener('click', () => setMode('reveal'));
+
+        // Settings Sliders Handlers
+        settingSpeed.addEventListener('input', (e) => {
+            scrollSpeed = parseInt(e.target.value);
+            speedVal.textContent = scrollSpeed;
+            prompterSpeedDisplay.textContent = scrollSpeed;
+        });
+
+        settingFontsize.addEventListener('input', (e) => {
+            fontSize = parseInt(e.target.value);
+            fontsizeVal.textContent = `${fontSize}px`;
+            prompterFontDisplay.textContent = `${fontSize}px`;
+            prompterText.style.fontSize = `${fontSize}px`;
+        });
+
+        settingLineheight.addEventListener('input', (e) => {
+            lineHeight = parseFloat(e.target.value);
+            lineheightVal.textContent = lineHeight.toFixed(1);
+            prompterLineheightDisplay.textContent = `${lineHeight.toFixed(1)}x`;
+            applyLineHeight();
+        });
+
+        // Quick Controls inside Prompter
+        speedUpBtn.addEventListener('click', () => {
+            if (scrollSpeed < 10) {
+                scrollSpeed++;
+                settingSpeed.value = scrollSpeed;
+                speedVal.textContent = scrollSpeed;
+                prompterSpeedDisplay.textContent = scrollSpeed;
+            }
+        });
+
+        speedDownBtn.addEventListener('click', () => {
+            if (scrollSpeed > 1) {
+                scrollSpeed--;
+                settingSpeed.value = scrollSpeed;
+                speedVal.textContent = scrollSpeed;
+                prompterSpeedDisplay.textContent = scrollSpeed;
+            }
+        });
+
+        fontUpBtn.addEventListener('click', () => {
+            if (fontSize < 120) {
+                fontSize += 4;
+                settingFontsize.value = fontSize;
+                fontsizeVal.textContent = `${fontSize}px`;
+                prompterFontDisplay.textContent = `${fontSize}px`;
+                prompterText.style.fontSize = `${fontSize}px`;
+            }
+        });
+
+        fontDownBtn.addEventListener('click', () => {
+            if (fontSize > 24) {
+                fontSize -= 4;
+                settingFontsize.value = fontSize;
+                fontsizeVal.textContent = `${fontSize}px`;
+                prompterFontDisplay.textContent = `${fontSize}px`;
+                prompterText.style.fontSize = `${fontSize}px`;
+            }
+        });
+
+        lineUpBtn.addEventListener('click', () => {
+            if (lineHeight < 3.0) {
+                lineHeight += 0.1;
+                settingLineheight.value = lineHeight.toFixed(1);
+                lineheightVal.textContent = lineHeight.toFixed(1);
+                prompterLineheightDisplay.textContent = `${lineHeight.toFixed(1)}x`;
+                applyLineHeight();
+            }
+        });
+
+        lineDownBtn.addEventListener('click', () => {
+            if (lineHeight > 1.0) {
+                lineHeight -= 0.1;
+                settingLineheight.value = lineHeight.toFixed(1);
+                lineheightVal.textContent = lineHeight.toFixed(1);
+                prompterLineheightDisplay.textContent = `${lineHeight.toFixed(1)}x`;
+                applyLineHeight();
+            }
+        });
+
+        lineDownBtn.addEventListener('click', () => {
+            if (lineHeight > 1.0) {
+                lineHeight -= 0.1;
+                settingLineheight.value = lineHeight.toFixed(1);
+                lineheightVal.textContent = lineHeight.toFixed(1);
+                prompterLineheightDisplay.textContent = `${lineHeight.toFixed(1)}x`;
+                prompterText.style.lineHeight = `${lineHeight}`;
+            }
+        });
+
+        // Alignment Buttons
+        document.querySelectorAll('.align-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.align-btn').forEach(b => {
+                    b.className = "align-btn p-2 text-slate-400 hover:text-white rounded-lg flex justify-center transition-colors";
+                });
+                btn.className = "align-btn p-2 text-white bg-indigo-600 rounded-lg flex justify-center shadow-md";
+                textAlign = btn.dataset.align;
+                prompterText.style.textAlign = textAlign;
+            });
+        });
+
+        // Theme Buttons Logic
+        const themeButtons = document.querySelectorAll('.theme-btn');
+        themeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                theme = btn.dataset.theme;
+
+                themeButtons.forEach(b => {
+                    b.className = "theme-btn p-2 rounded-xl border border-slate-800 bg-slate-800/40 text-slate-400 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all";
+                });
+
+                btn.className = "theme-btn p-2 rounded-xl border border-indigo-500 bg-indigo-600/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/50";
+
+                if (theme === 'high-vis' || theme === 'yellow') {
+                    theme = 'yellow';
+                    customTextColorContainerDisabled(false);
+                } else {
+                    customTextColorContainerDisabled(true);
+                }
+
+                applyTheme();
+            });
+        });
+
+        function customTextColorContainerDisabled(disabled) {
+            if (disabled) {
+                customColorContainer.classList.add('opacity-40', 'pointer-events-none');
+                customTextColorInput.disabled = true;
+            } else {
+                customColorContainer.classList.remove('opacity-40', 'pointer-events-none');
+                customTextColorInput.disabled = false;
+            }
+        }
+
+        // Custom Text Color Input
+        customTextColorInput.addEventListener('input', (e) => {
+            customTextColor = e.target.value;
+            customColorHexDisplay.textContent = customTextColor.toUpperCase();
+            if (theme === 'yellow') {
+                prompterText.style.color = customTextColor;
+            }
+        });
+
+        // Mirror Toggles
+        toggleMirrorH.addEventListener('click', () => {
+            mirrorH = !mirrorH;
+            toggleMirrorH.classList.toggle('bg-indigo-600/30');
+            toggleMirrorH.classList.toggle('border-indigo-500/50');
+            toggleMirrorH.classList.toggle('text-white');
+            applyMirroring();
+        });
+
+        toggleMirrorV.addEventListener('click', () => {
+            mirrorV = !mirrorV;
+            toggleMirrorV.classList.toggle('bg-indigo-600/30');
+            toggleMirrorV.classList.toggle('border-indigo-500/50');
+            toggleMirrorV.classList.toggle('text-white');
+            applyMirroring();
+        });
+
+        prompterMirrorBtn.addEventListener('click', () => {
+            mirrorH = !mirrorH;
+            applyMirroring();
+        });
+
+        // Focus Line Toggle
+        toggleFocusLine.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                focusLine.classList.remove('hidden');
+            } else {
+                focusLine.classList.add('hidden');
+            }
+        });
+
+        // Fullscreen Toggle
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        });
+
+        // Load Sample Text
+        loadSampleBtn.addEventListener('click', () => {
+            scriptInput.value = sampleText;
+            updateStats();
+        });
+
+        // Clear Text
+        clearBtn.addEventListener('click', () => {
+            scriptInput.value = '';
+            updateStats();
+        });
+
+        // Keyboard Shortcuts Handler
+        document.addEventListener('keydown', (e) => {
+            if (prompterScreen.classList.contains('hidden')) return;
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            } else if (e.code === 'ArrowUp') {
+                e.preventDefault();
+                if (mode === 'auto') speedUpBtn.click();
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                if (mode === 'auto') speedDownBtn.click();
+            } else if (e.code === 'Escape') {
+                e.preventDefault();
+                stopPrompter();
+            }
+        });
+
+        // Open AI Grammar Modal
+        grammarCheckBtn.addEventListener('click', performGrammarCheck);
+
+        async function performGrammarCheck() {
+            const text = scriptInput.value.trim();
+            if (!text) {
+                alert('يرجى كتابة أو إضافة نص في المحرر أولاً ليتمكن الذكاء الاصطناعي من فخصه!');
+                return;
+            }
+
+            grammarModal.classList.remove('hidden');
+            grammarModal.classList.add('flex');
+            grammarLoading.classList.remove('hidden');
+            grammarResults.classList.add('hidden');
+            applyCorrectedBtn.classList.add('hidden');
+
+            try {
+                const prompt = `أنت مدقق لغوي وإملائي خبير باللغة العربية واللغات المختلفة. قم بفحص النص التالي وتصحيح أي أخطاء إملائية، نحوية، أو لغوية.
+رجاءً قم بإرجاع النتيجة بصيغة JSON حصرية بالهيكل التالي فقط وبدون أي مقدمات أو شرح خارج JSON:
+{
+  "correctedText": "النص الكامل بعد التصحيح",
+  "issues": [
+    {
+      "original": "الكلمة الخاطئة",
+      "correction": "التصحيح",
+      "reason": "سبب التعديل باختصار"
+    }
+  ]
+}
+
+النص المراد فحصها:
+"""
+${text}
+"""`;
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { responseMimeType: "application/json" }
+                    })
+                });
+
+                const data = await response.json();
+                const resultJsonStr = data.candidates[0].content.parts[0].text;
+                const result = JSON.parse(resultJsonStr);
+
+                currentCorrectedScript = result.correctedText;
+                displayGrammarResults(result);
+
+            } catch (err) {
+                console.error("Grammar Check Error:", err);
+                grammarLoading.classList.add('hidden');
+                alert('حدث خطأ أثناء الاتصال بالمدقق اللغوي الذكي. يرجى المحاولة مرة أخرى.');
+                closeGrammarModal.click();
+            }
+        }
+
+        function displayGrammarResults(result) {
+            grammarLoading.classList.add('hidden');
+            grammarResults.classList.remove('hidden');
+            applyCorrectedBtn.classList.remove('hidden');
+
+            correctedTextBox.textContent = result.correctedText;
+
+            grammarIssuesList.innerHTML = '';
+            if (!result.issues || result.issues.length === 0) {
+                grammarSummary.className = "p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-medium flex items-center gap-2";
+                grammarSummary.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i> ممتاز! النص خالٍ تماماً من الأخطاء اللغوية والإملائية.';
+            } else {
+                grammarSummary.className = "p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-indigo-300 text-xs font-medium flex items-center gap-2";
+                grammarSummary.innerHTML = `<i data-lucide="info" class="w-4 h-4 text-indigo-400"></i> تم التعرّف على ${result.issues.length} من التعديلات والأخطاء الإملائية أو النحوية.`;
+
+                result.issues.forEach(issue => {
+                    const card = document.createElement('div');
+                    card.className = "p-3 bg-slate-800/60 border border-slate-700/60 rounded-xl flex items-start justify-between gap-3 text-xs";
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex items-center gap-2 font-semibold">
+                                <span class="text-red-400 line-through">${escapeHtml(issue.original)}</span>
+                                <i data-lucide="arrow-right" class="w-3 h-3 text-slate-500"></i>
+                                <span class="text-emerald-400">${escapeHtml(issue.correction)}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1">${escapeHtml(issue.reason)}</p>
+                        </div>
+                    `;
+                    grammarIssuesList.appendChild(card);
+                });
+            }
+
+            lucide.createIcons();
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+
+        // Apply Corrected Text
+        applyCorrectedBtn.addEventListener('click', () => {
+            if (currentCorrectedScript) {
+                scriptInput.value = currentCorrectedScript;
+                updateStats();
+                grammarModal.classList.add('hidden');
+                grammarModal.classList.remove('flex');
+            }
+        });
+
+        // Close Grammar Modal
+        closeGrammarModal.addEventListener('click', () => {
+            grammarModal.classList.add('hidden');
+            grammarModal.classList.remove('flex');
+        });
+
+        cancelGrammarBtn.addEventListener('click', () => {
+            grammarModal.classList.add('hidden');
+            grammarModal.classList.remove('flex');
+        });
+
+        // Script input stats listener
+        scriptInput.addEventListener('input', updateStats);
+
+        // Initialize sample text stats on load
+        scriptInput.value = sampleText;
+        updateStats();
+
+    </script>
+</body>
+</html>
