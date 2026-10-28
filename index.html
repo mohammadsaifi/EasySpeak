@@ -1322,15 +1322,30 @@ Wir wünschen Ihnen ein erfolgreiches und reibungsloses Training vor der Kamera!
             }
         });
 
+        
         // Open AI Grammar Modal
         grammarCheckBtn.addEventListener('click', performGrammarCheck);
 
         async function performGrammarCheck() {
             const text = scriptInput.value.trim();
             if (!text) {
-                alert('يرجى كتابة أو إضافة نص في المحرر أولاً ليتمكن التدقيق اللغوي من فخصه!');
+                alert('يرجى كتابة أو إضافة نص في المحرر أولاً ليتمكن التدقيق اللغوي من فحصه!');
                 return;
             }
+          
+            if (text === sampleText.trim()) {
+                alert('هذا النص التجريبي لا يحتاج إلى تدقيق بالذكاء الاصطناعي، يرجى كتابة نصك الخاص أولاً!');
+                return;
+            }
+
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+
+            // شرط منع النص الأقل من 41 كلمة
+            if (words.length < 41) {
+                alert(`النص قصير جداً (${words.length} كلمة). يرجى إدخال نص يتكون من 40 كلمة على الأقل للتدقيق.`);
+                return;
+            }
+    
 
             grammarModal.classList.remove('hidden');
             grammarModal.classList.add('flex');
@@ -1338,61 +1353,46 @@ Wir wünschen Ihnen ein erfolgreiches und reibungsloses Training vor der Kamera!
             grammarResults.classList.add('hidden');
             applyCorrectedBtn.classList.add('hidden');
 
-            const customKeyInput = document.getElementById('user-gemini-key');
-            const userApiKey = customKeyInput ? customKeyInput.value.trim() : '';
-            const activeApiKey = userApiKey || EMBEDDED_GEMINI_KEY;
+            const WORKER_URL = "https://rough-base-28c3.mohamadsaifi47.workers.dev";
 
-            if (activeApiKey) {
-                // Perform AI check with active Gemini API Key
-                try {
-                    const prompt = `أنت مدقق لغوي وإملائي خبير باللغة العربية واللغات المختلفة. قم بفحص النص التالي وتصحيح أي أخطاء إملائية، نحوية، أو لغوية.
-رجاءً قم بإرجاع النتيجة بصيغة JSON حصرية بالهيكل التالي فقط وبدون أي مقدمات أو شرح خارج JSON:
-{
-  "correctedText": "النص الكامل بعد التصحيح",
-  "issues": [
-    {
-      "original": "الكلمة الخاطئة",
-      "correction": "التصحيح",
-      "reason": "سبب التعديل باختصار"
-    }
-  ]
-}
+            try {
+                const response = await fetch(WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
 
-النص المراد فحصها:
-"""
-${text}
-"""`;
-
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${activeApiKey}`;
-
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: { responseMimeType: "application/json" }
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Server status code: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    const resultJsonStr = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (!resultJsonStr) {
-                        throw new Error('Invalid response structure from AI model');
-                    }
-
-                    const result = JSON.parse(resultJsonStr);
-                    currentCorrectedScript = result.correctedText || text;
-                    displayGrammarResults(result);
-                    return;
-
-                } catch (err) {
-                    console.warn("API Error, falling back to client-side grammar check:", err);
+                if (!response.ok) {
+                    throw new Error(`Worker status code: ${response.status}`);
                 }
+
+                const data = await response.json();
+
+                if (data.result) {
+                    currentCorrectedScript = data.result;
+
+                    displayGrammarResults({
+                        correctedText: data.result,
+                        issues: [
+                            {
+                                original: "فحص لغوي وإملائي شامل",
+                                correction: "تم التدقيق عبر الذكاء الاصطناعي",
+                                reason: "تمت مراجعة القواعد والصياغة والإملاء بالكامل بنجاح"
+                            }
+                        ]
+                    });
+                } else {
+                    throw new Error(data.error || 'فشل الحصول على نتيجة من الخادم');
+                }
+
+            } catch (err) {
+                console.warn("حدث خطأ أثناء الاتصال بالـ Worker، جاري تحويل الفحص محلياً:", err);
+                
+                const fallbackResult = runLocalGrammarCheck(text);
+                currentCorrectedScript = fallbackResult.correctedText;
+                displayGrammarResults(fallbackResult);
             }
+        }
 
             // High-speed fallback grammar check
             setTimeout(() => {
@@ -1400,7 +1400,7 @@ ${text}
                 currentCorrectedScript = result.correctedText;
                 displayGrammarResults(result);
             }, 600);
-        }
+        
 
         // Local Rule-Based Grammar & Spelling Corrector
         function runLocalGrammarCheck(rawText) {
@@ -1506,6 +1506,18 @@ ${text}
         // Initialize sample text stats on load
         scriptInput.value = sampleText;
         updateStats();
+
+
+        scriptInput.addEventListener('input', (e) => {
+    const words = e.target.value.trim() ? e.target.value.trim().split(/\s+/) : [];
+
+    // إذا تجاوز 400 كلمة، يتم اقتطاع الكلمات الزائدة بهدوء دون إظهار أي تنبيه
+    if (words.length > 500) {
+        e.target.value = words.slice(0, 500).join(' ') + ' ';
+    }
+
+    updateStats();
+});
 
     </script>
 </body>
