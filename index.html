@@ -549,6 +549,7 @@ Wir wünschen Ihnen ein erfolgreiches und reibungsloses Training vor der Kamera!
 
         // Grammar AI State
         let currentCorrectedScript = '';
+        
 
         // DOM Elements
         const editorScreen = document.getElementById('editor-screen');
@@ -1338,10 +1339,7 @@ Wir wünschen Ihnen ein erfolgreiches und reibungsloses Training vor der Kamera!
                 return;
             }
 
-            if (text === lastCheckedText.trim()) {
-                alert('تم فحص وتعديل هذا النص بالكامل سابقاً! قم بإجراء أي تغيير أو إضافة نص جديد لتتمكن من فحصه مجدداً.');
-                return;
-            }
+            
 
             const words = text.split(/\s+/).filter(w => w.length > 0);
 
